@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <script th:src="@{webjars/jquery/3.1.1/jquery.min.js}"></script>
+    <script th:src="@{webjars/bootstrap/3.3.7/js/bootstrap.min.js}"></script>
+    <link rel="stylesheet" th:href="@{webjars/bootstrap/3.3.7/css/bootstrap.min.css}" />
+    <meta charset="UTF-8">
+    <title>在线聊天室</title>
+</head>
+<body>
+<div class="container-fluid">
+    <div style="width: 100%;height: 100px;text-align: center;margin-bottom: 30px;color: #495e6a;box-shadow: 0px 0px 10px #000000">
+        <br>
+        <h1>文明用语，快乐你我他</h1>
+    </div>
+    <div style="width: 800px;height: 600px;margin: auto;background-color: #dce9f6;box-shadow: 0px 0px 10px #707074;display: flex">
+        <div style="width: 200px;height: 600px;background-color: #d4d1d1">
+            <div style="width: 160px;height: 40px;margin: auto;margin-top: 10px;text-align: center">
+<!--                <span class="glyphicon glyphicon-globe" style="font-size: 30px;padding-top: 2px;padding-bottom: 2px"></span>-->
+<!--                <span style="font-size: 30px">群聊</span>-->
+                <button id="btn4" class="btn btn-danger" style="margin-top: 10px;float: left">私信</button>
+                <button id="btn5" class="btn btn-success" style="margin-top: 10px;float: right">群聊</button>
+            </div>
+            <div style="width: 160px;height: 40px;margin: auto;margin-top: 10px;background-color: #fdffff;text-align: center;box-shadow: 0px 0px 10px #474749;border-radius: 4px">
+                <span class="glyphicon glyphicon-star" style="font-size: 30px;padding-top: 2px;padding-bottom: 2px"></span>
+                <span style="font-size: 30px" th:text="${Springuser}">游客</span>
+            </div>
+            <hr>
+            <div id="online" style="width: 200px;height: 500px;word-break: break-word;overflow: auto">
+
+            </div>
+        </div>
+        <div style="width: 600px;height: 600px">
+            <div style="width: 600px;height: 500px;padding: 20px 20px 20px 20px;word-break: break-word;overflow: auto" id="message">
+
+            </div>
+            <div style="width: 600px;height: 500px;padding: 20px 20px 20px 20px;word-break: break-word;overflow: auto;display: none;background-color: #efcbc0" id="message2">
+                <div style="width: 560px;height: 40px;text-align: center">
+                    <select class="btn btn-default dropdown-toggle" id="selectname">
+                    </select>
+                </div>
+                <hr>
+            </div>
+            <div style="width: 600px;height: 100px;background-color: #ddf1d7;display: flex">
+                <div style="width: 100px;height: 100px;text-align: center;background-color: #f5d2d2">
+                    <button id="btn1" class="btn btn-success" style="margin-top: 5px">连接上线</button><br>
+                    <br>
+                    <button id="btn2" class="btn btn-danger">下线</button>
+                </div>
+                <div style="width: 500px;height: 100px;padding: 10px 10px 10px 10px" class="input-group">
+                    <input id="msg" type="text" class="form-control" placeholder="在这里输入想说的话吧！" /><br>
+                    <button id="btn3" class="btn btn-info" style="margin-top: 10px;float: right">发送消息</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+<script th:inline="javascript" language='javascript'>
+    $(document).ready(function(){
+        var select;
+        var fromuser = "";
+        var type = "q";
+        var username = [[${Springuser}]];
+        var websocket = null;
+        $("#btn1").click(function(){
+            //判断当前浏览器是否支持WebSocket
+            if(select === 1){
+                alert("你已连接上线路，无需重复连接！")
+            }else {
+                if ('WebSocket'in window) {
+                    websocket = new WebSocket("ws://localhost:8080//" + username);
+                    alert("欢迎-->" + username + "<--成功上线！");
+                    select = 1;
+                } else {
+                    alert('Not support websocket')
+                }
+            }
+            //连接发生错误的回调方法
+            websocket.onerror = function() {
+                alert("错误");
+            };
+
+            //连接成功建立的回调方法
+            websocket.onopen = function() {
+            }
+
+            //接收到消息的回调方法
+            websocket.onmessage = function(event) {
+                var touser = $("#selectname").val();
+                var msg = event.data
+                var obj = JSON.parse(msg);
+                var zxname = obj.onlinepp;
+                var chat = obj.chat;
+                if (zxname != null){
+                    onlinename(zxname);
+                }
+                if (chat != null){
+                    if (chat[2] === "q"){
+                        setchat(chat);
+                    }else if (chat[2] === "s" && chat[3] === username){
+                        setchat2(chat);
+                    }else if(chat[2] === "s" && chat[3] === touser){
+                        setchat2(chat);
+                    }
+
+                }
+            }
+
+            //连接关闭的回调方法
+            websocket.onclose = function() {
+                alert("离开");
+                select = 2;
+                $("#online").empty();
+
+            }
+            //监听窗口关闭事件，当窗口关闭时，主动去关闭websocket连接，防止连接还没断开就关闭窗口，server端会抛异常。
+            window.onbeforeunload = function() {
+                websocket.onclose;
+                websocket.close();
+            }
+        });
+
+        //将消息显示在网页上 // 群聊
+        function setchat(message) {
+            $("<div style=\"width: 560px;min-height: 40px;display: flex;margin-bottom: 20px\">\n" +
+                "                    <div style=\"width: 40px;height: 40px;background-color: #ffffff;text-align: center;border-radius: 20px\">\n" +
+                "                        <span style=\"font-size: 28px;margin-top: 9px\"><strong>N</strong></span>\n" +
+                "                    </div>\n" +
+                "                    <div style=\"min-height: 40px;margin-left: 10px\">\n" +
+                "                        <div style=\"height: 18px\">\n" +
+                "                            <span style=\"color: #7f7777;font-size: 14px\">"+message[0]+"</span>\n" +
+                "                        </div>\n" +
+                "                        <div style=\"min-height: 20px;word-break: break-word;background-color: #ffffff;padding: 10px 10px 10px 10px;border-radius: 6px\">\n" +
+                "                            <span>"+message[1]+"</span>\n" +
+                "                        </div>\n" +
+                "                    </div>\n" +
+                "                </div>").appendTo("#message");
+        }
+
+        //将消息显示在网页上 // 私聊
+        function setchat2(message) {
+            $("<div style=\"width: 560px;min-height: 40px;display: flex;margin-bottom: 20px\">\n" +
+                "                    <div style=\"width: 40px;height: 40px;background-color: #ffffff;text-align: center;border-radius: 20px\">\n" +
+                "                        <span style=\"font-size: 28px;margin-top: 9px\"><strong>N</strong></span>\n" +
+                "                    </div>\n" +
+                "                    <div style=\"min-height: 40px;margin-left: 10px\">\n" +
+                "                        <div style=\"height: 18px\">\n" +
+                "                            <span style=\"color: #7f7777;font-size: 14px\">"+message[0]+"</span>\n" +
+                "                        </div>\n" +
+                "                        <div style=\"min-height: 20px;word-break: break-word;background-color: #ffffff;padding: 10px 10px 10px 10px;border-radius: 6px\">\n" +
+                "                            <span>"+message[1]+"</span>\n" +
+                "                        </div>\n" +
+                "                    </div>\n" +
+                "                </div>").appendTo("#message2");
+        }
+
+        function onlinename(obj){
+            $("#online").empty();
+            $("#selectname").empty();
+            obj.forEach(function (e){
+                $("<div style=\"width: 160px;height: 40px;margin: auto;margin-top: 10px;background-color: #fdffff;text-align: center;box-shadow: 0px 0px 10px #474749;border-radius: 4px;overflow: hidden\">\n" +
+                    "                <span class=\"glyphicon glyphicon-user\" style=\"font-size: 30px;padding-top: 2px;padding-bottom: 2px\"></span>\n" +
+                    "                <span style=\"font-size: 26px\">"+e+"</span>\n" +
+                    "            </div>").appendTo("#online");
+                $("<option value="+e+">"+e+"</option>").appendTo("#selectname");
+            });
+        }
+
+        $("#btn2").click(function(){
+            websocket.close();
+        });
+        //发送消息
+
+        $("#btn3").click(function(){
+            var touser = $("#selectname").val();
+            if (touser == null){
+                alert("你必须选择一位好友，或者自己和自己聊聊天？");
+            }else {
+                var message = type + "-" + $("#msg").val() + "-" + touser;
+                websocket.send(message);
+                $("#msg").val("");
+            }
+        });
+
+        $("#btn4").click(function (){  // 私聊
+            type = "s";
+            $("#message").hide();
+            $("#message2").show();
+        });
+
+        $("#btn5").click(function (){  // 群聊
+            type = "q";
+            $("#message").show();
+            $("#message2").hide();
+        });
+
+
+
+    });
+</script>
+</html>
